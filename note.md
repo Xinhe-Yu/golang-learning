@@ -589,3 +589,331 @@ init
 `p1 := new(Person)` to initializes fileds to zero
 
 `p1 := Person(name: "joe", addr: "a st.", phone: "123")` to initialize using a struct literal
+
+### RFC = requests for comments
+example protocols: HTML, URI (Uniform resource identifier), HTTP
+
+Golang provides pkg for important RFCs ; functions which encode and decode
+
+`"net/http"` => `http.Get(www.google.com)`
+
+`"net"` for TCP/IP and socket programming : `net.Dial("tcp", "uci.edu:80")`
+
+#### JSON
+"`"json"`" (RFC 7159), basic value: bool, num, str, array, "object"
+
+**JSON Marshalling**, generating JSON representation from an object
+
+```go
+p1 := Person(...)
+barr, err := json.Marshal(p1) // barr = b array
+// Marshal() returns JSON representation as []byte
+```
+JSON Unmarshalling:
+```go
+var p2 Person
+err := json.Unmarshal(barr, &p2)
+```
+
+#### File
+basic ops: open, read, write, close, seek (move read/write head)
+
+`"io/ioutil"`
+
+`dat, err := ioutil.ReadFile("test.txt")`
+
+dat is []byte
+
+explicit open/close are not needed
+
+large files cause a problem (at least cannot bigger than RAM)
+
+```go
+dat = "Hello, world"
+err := ioutil.WriteFile("outfile.txt", dat, 0777)
+// 0777 : unix-style permission bytes
+```
+
+#### OS package
+`os.Open()` returns a file descriptor
+
+`os.Close()` closes a file
+
+`os.Read()` reads from a file into a []byte, fills the []byte, control the amount read
+
+`os.Write()` writes the byte you want
+
+##### example for read
+```go
+f. err := os.Open("dt.txt")
+barr := make([]byte, 10)
+nb, err := f.Read(barr) // nb => number of bytes
+f.Close()
+```
+
+##### example for write
+```go
+f. err := os.Create("outfile.txt")
+barr := []byte{1, 2, 3}
+nb, err :=f.Write(barr)
+nb, err := f.WriteString("Hi")
+```
+
+## Functions
+
+```go
+func main() {
+  // all go program has a main
+  // you never call this function
+}
+
+func foo(x int, y int) {
+  fmt.Print(x * y)
+}
+
+func foo1(x int) int { // second int => return value
+  return x + 1
+}
+
+func foo2(x int) (int, int) { // 2 return values
+  return x, x + 1
+}
+
+
+```
+
+**call by value** => passed arguments are copied to parameters, modifying aprameters has no effect outside the function
+
+```go
+func foo(y int) {
+  y = y + 1
+}
+
+func main() {
+  x := 2
+  foo(x) // 3
+  fmt.Print(x) // 2
+}
+```
+
+**tradeoffs of call by value**
+
+advantage: data encapsulation
+
+disadvantage: copying time, large objects may take a long time to copy
+
+**call by reference** => pass a pointer as an argument, called function has direct access to caller variable in memory.
+
+```go
+func foo(y *int) {
+  *y = *y + 1
+}
+
+func main() {
+  x := 2
+  foo(&x)
+  fmt.Print(x)
+}
+```
+
+**tradeoffs of call by reference**
+
+advantage: copying time, don't need to copy arguments
+
+disadvantage: data encapsulation, function variables may be changed in called functions
+
+### passing array arguments
+array arguments are copied
+
+```go
+func foo(x [3]int) int {
+  return x[0]
+}
+
+func main() {
+  a := [3]int{1, 2, 3}
+  fmt.Print(foo(a))
+}
+```
+### passing array pointers
+```go
+func foo(x * [3]int) int {
+  (*x)[0] = (*x)[0] + 1
+
+  func main() {
+    a := [3]int{1, 2, 3}
+    foo(&a)
+    fmt.Print(a)
+  }
+}
+```
+
+### pass slices instead
+- slices contain a pointer to the array
+- passing a slice copies the pointer
+
+```go
+func foo(sli[] int) int { // cannot specify the size of slice
+  sli[0] = sli[0] + 1
+}
+
+func main() {
+  a := []int{1, 2, 3} // without number in [] means it is a slice
+  foo(a)
+  fmt.Print(a)
+}
+```
+
+### some tips for functions
+
+**understandability**:
+- if you are asked to find a feature, you can find it quickly / better : others can find it easily
+- if you are asked about where data is used, you know where is used and where is written
+
+**debugging principles**:
+- code crashes inside a function
+- two options for the cause: function is written incorrectly; data that the function uses is incorrect.
+
+**supporting debugging**:
+- functions need to be understandable, determine if actual behavior matches desired behavior
+- data needs to be traceable: origin of data, global variables complicate this.
+
+**function Naming**:
+- behavior can be undrstood at a glance
+- parameter naming counts too
+
+**functional cohesion**
+- function should perform only one 'operation'
+- an 'operation' depends on the context
+- few parameters, because debugging requires tracing function input data
+
+**function complexity**
+- function call hierarchy
+
+**control-flow complexity**
+- control-flow describes conditional paths
+- partitioning conditionals
+
+### first-class values
+- Functions are first-class.
+- Variables can be declared with a function type
+- can be created dynamically
+
+#### variables as functions
+- declare a variable as a func
+```go
+var funcVar func(int) int
+func incFn(x int) int {
+  return x + 1
+}
+
+func main() {
+  functVar = incFn // function is on right-hand side, without ()
+  fmt.Print(funcVar(1))
+}
+
+#####
+
+func applyIt(afunct func (int) int, val int) int {
+  return afunct(val)
+}
+
+#####
+
+func applyIt(afunct func (int) int, val int) int {
+  return afunct(val)
+}
+
+func incFn(x int) int {return x + 1}
+func decFn(x int) int {return x - 1}
+
+func main() {
+  fmt.Println(applyIt(incFn, 2))
+  fmt.Println(applyIt(decFn, 2))
+}
+
+##### Anonymous functions
+
+func applyIt(afunct func (int) int, val int) int {
+  return afunct(val)
+}
+
+func main() {
+  v := applyIt(func (x int) int {return x + 1}, 2) // it's the increment function
+  fmt.Println(v)
+}
+```
+
+#### functions as return values
+```go
+func MakeDistOrigin(o_x, o_y float64) func (float64, float64) float64 {
+  fn := func(x, y float) float64 {
+    return math.Sqrt(math.Pow(x - o_x, 2) + math.Pow(y - o_y, 2))
+  }
+  return fn
+}
+
+func main() {
+  Dist1 := MakeDistOrigin(0, 0)
+  Dist2 := MakeDistOrigin(2, 2)
+  fmt.Println(Dist1(2, 2))
+  fmt.Println(Dist2(2, 2))
+}
+```
+- origin location is passed as an argument
+- origin is built into the returned function
+
+**Closure**
+- closure = function + its environment
+
+- when functions are passed/returned, their environment comes with them
+
+### variadic and deferred
+**variable argument number**
+- functions can take a variable number of arguments
+- use ellipsis ... to specify
+- treated as a slice inside function
+```go
+func getMax(vals ...int) int { // ... means it takes arguments as much as you like, treat the arguments as a slice
+  maxV := -1
+  for _, v :range vals {
+    if v > maxV {
+      maxV = v
+    }
+    return maxV
+  }
+}
+```
+
+**variadic slice argument**
+```go
+func main() {
+  fmt.Println(getMax(1, 3, 6, 4))
+  vslice := []int{1, 3, 6, 4}
+  fmt.Println(getMax(vslice...))
+}
+```
+- can pass a slice to a variadic function
+- need the ... suffix
+
+**deferred function calls**
+- call can be deferred until the surrounding function completes
+- typically used for cleanup activities
+
+```go
+func main() {
+  defer fmt.Println("Bye!") // wont be executed until the main completed
+
+  fmt.Println("Hello!")
+}
+//  arguments are evaluated immediately but the call is deferred
+
+#####
+
+func main() {
+  i := 1
+  defer fmt.Println(i+1)
+  i++
+  fmt.Println("Hello!")
+}
+```
