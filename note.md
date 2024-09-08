@@ -1055,3 +1055,216 @@ func main() {
 #### using pointer receivers
 - good programming pratice: all methods for a type have pointer receivers, or have non-pointer receivers
 - mixing pointer/non-pointer reference for a type will get confusing
+
+## Polymorphism
+- ability for an object to have different "forms" depending on the context
+- different implementations for each class, same signature (name, params, return)
+- example: `Area()` function
+- - rectangle, area = base * height
+- - triangle, area = 0.5 * base * height
+- identical at a high level of abstraction and different at a low level of abstraction
+
+- traditional solution : inheritance => golang doesn't have
+
+### interfaces
+Go's way to handle polymorphism
+
+- set of method signatures: name, parameters, return values, implementation is NOT defined
+- used to express conceptual similarity between types
+- example: `Shape2D interface`
+- - all 2D shapes must have `Area()` and `Perimeter()`
+
+#### satisfying an interface
+- type satisfies an interface if type defines all methods specified in the interface
+- - same method signatures
+- - additional methods are OK
+- similar to inheritance with overriding
+
+**defining an interface type**
+```go
+type Shape2D interface {
+  Area() float64
+  Perimeter() float64
+}
+type Triangle {...}
+func (t Triangle) Area() float64 {...}
+func (t Triangle) Perimeter() float64 {...}
+```
+- no need to state it explicitly
+
+#### concerte vs interface types
+**concrete types**:
+- specify the exact representation of the data and methods
+- complete method implementation is included
+
+**interface types**:
+- specifies some method signatures
+- implementations are abstracted
+
+**interface values**:
+- can be treated like other values, assigned to variables, passed, returned
+- interface values have two components
+- 1. dynamic type: concrete type which it is assigned to
+- 2. dynamic value: value of the dynamic type
+
+**defining an interface type**
+```go
+type Speaker interface { Speak() }
+type Dog struct {name string}
+func (d Dog) Speak() {
+  fmt.Println(d.name)
+}
+func main() {
+  var s1 Speaker
+  var d1 Dog{"Brian"}
+  s1 = d1 // dog type satisfies speaker type
+  s1.Speak()
+}
+```
+
+**interface with nil dynamic value**
+- an interface can have a nil dynamic value
+```go
+var s1 Speaker
+var d1 *Dog
+s1 = d1
+```
+- d1 has no concrete value yet
+- s1 has a dynamic type but no dynamic value
+- can still call the `Speak()` method of `s1`
+- need to check inside the method
+```go
+func (d *Dog) Speak() {
+  if d == nil {
+    fmt.Println("<noise>")
+  } else {
+    fmt.Println(d.name)
+  }
+var s1 Speaker
+var d1 *Dog
+s1 = d1
+s1.Speak()
+}
+```
+**nil interface value**
+- interface with nil dynamic type
+- very different from an interface with a nil dynamic value
+
+**nil dynamic value** and **valid dynamic type**:
+
+`var s1 Speaker ; var d1 *Dog ; s1 = d1`
+
+=> can call a method since type is known
+
+**nil dynamic type**
+
+`var s1 Speaker`
+
+=> cannot call a method, runtime error
+
+#### Using interface
+**ways to use an interface**
+- need a function which takes multiple types of parameter
+- Function `foo()` parameter
+- - Type X or type Y
+- define interface Z
+- `foo()` parameter is interface Z
+- type X and Y satisfy Z
+- interface methods must be those needed by `foo()`
+
+Example: Pool in a yard
+- put a pool in my yard
+- pool needs to fit in my yard, total area must be limited
+- pool needs to be fenced -> total permimeters must be limited
+- need to determine if a pool shape satisfies criteria
+- `FitInYard()` -> takes a shape as argument and returns `true` if the shape satisfies criteria
+- many possible shape types -> Rectangle, triangle, circle, etc
+- Valid shape types must have: `Area()` and `Perimeter()`
+```go
+// interface for shapes
+type Shape2D interface {
+  Area() float64
+  Perimeter() float64
+}
+
+type Triangle {...}
+func (t Triangle) Area() float64 {...}
+func (t Triangle) Perimeter() float64 {...}
+
+type Rectangle {...}
+func (t Rectangle) Area() float64 {...}
+func (t Rectangle) Perimeter() float64 {...}
+
+func FitInYard(s Shape2D) bool {
+  if (s.Area() > 100 && s.Perimeter() > 100 ) {
+    return true
+  }
+  return false
+}
+```
+**empty interface**
+- empty interface specifies no methods
+- all types satisfy the empty interface
+- use it to have a function accept any type as a parameter
+
+```go
+func PrintMe(val interface{}) {
+  fmt.Println(val)
+}
+```
+
+#### Type assertions
+**concealing type differences**
+- interfaces hide the differences between types
+- sometimes you need to treat different types in different ways
+
+**exposing type differences**
+- example: graphics program
+- `DrawShape()` will draw any shape
+- - `func DrawShape (s Shape2D) {...}`
+- underlying API has different drawing functions for each shape
+- - `func DrawRect (r Rectangle) {...}`
+- - `func DrawTriangle (t Triangle) {...}`
+- concrete type of shape s must be determined
+
+**type assertions for disambiguation**
+- type assrtions can be used to determine and extract the underling concrete type
+```go
+func DrawShape (s Shape2D) bool {
+  rect, ok := s.(Rectangle)
+  if ok {
+    DrawRect(rect)
+  }
+  tri, ok := s.(Triangle)
+  if ok {
+    DrawTriangle(tri)
+  }
+}
+```
+- type assertion extracts Rectangle from `Shape2D` -> concrete type in parentheses
+- if interface contains concrete type => `rect == concrete type, ok == true`
+- if interface doesnot contain concrete type => `rect == zero, ok == false`
+
+**type switch**
+- switch statement used with a type assertion
+```go
+func DrawShape(s Shape2D) bool {
+  switch := sh := s.(type) {
+    case Rectangle:
+    DrawRect(sh)
+    case Triangle:
+    DrawTriangle(sh)
+  }
+}
+```
+
+#### Error handling
+**Error interface**
+- many go programs return error interface objects to indicate errors
+```go
+type error interface {
+  Error() string
+}
+```
+- correct operation: error == nil
+- incorrect operation: Error() prints error message
