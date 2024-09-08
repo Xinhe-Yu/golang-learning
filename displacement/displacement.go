@@ -12,14 +12,32 @@ func GenDisplaceFn(a, vo, so float64) func(t float64) float64 {
 
 func main() {
 	var a, vo, so, t float64
-	a = 10
-	vo = 2
-	so = 1
+
+	fmt.Print("Enter acceleration (a): ")
+	_, err := fmt.Scan(&a)
+	if err != nil {
+		fmt.Println("Error reading acceleration:", err)
+		return
+	}
+
+	fmt.Print("Enter initial velocity (vo): ")
+	_, err = fmt.Scan(&vo)
+	if err != nil {
+		fmt.Println("Error reading initial velocity:", err)
+		return
+	}
+
+	fmt.Print("Enter initial displacement (so): ")
+	_, err = fmt.Scan(&so)
+	if err != nil {
+		fmt.Println("Error reading initial displacement:", err)
+		return
+	}
 
 	fn := GenDisplaceFn(a, vo, so)
 
 	fmt.Print("Enter time (t): ")
-	_, err := fmt.Scan(&t)
+	_, err = fmt.Scan(&t)
 	if err != nil {
 		fmt.Println("Error reading time:", err)
 		return

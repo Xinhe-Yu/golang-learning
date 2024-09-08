@@ -917,3 +917,141 @@ func main() {
   fmt.Println("Hello!")
 }
 ```
+
+## Classes (= struct)
+- collection of data fields and functions that share a well-defined responsibility
+- data can be protected from the programmer
+- data can be accessed only using methods
+
+**associating methods with data**
+- method has a receiver type that it is associated with
+- use dot notation to call the method
+
+```go
+type MyInt int
+func (mi MyInt) Double () int {
+  return int(mi*2) // call by value
+}
+func main() {
+  v := MyInt(3)
+  fmt.Println(v.Double())
+}
+
+#####
+
+type Point struct {
+  x float64
+  y float64
+}
+
+func (p Point) DistToOrig() {
+  t := math.Pow(p.x, 2) + math.Pow(p.y, 2)
+  return math.Sqrt(t)
+}
+
+func main() {
+  p1 := Point(3, 4)
+  fmt.Println(p1.DistToOrig())
+}
+```
+
+### encapsulation
+**controlling access**
+- Can define public functions to allow access to hidden data
+
+```go
+package data
+var x int = 1
+func PrintX() {fmt.Println(x)}
+
+package main
+import "data"
+func main() {
+  data.PrintX()
+}
+
+```
+**controlling access to structs**
+- hide fields of structs by starting field name with a lower-case letter
+- define public methods which access hidden data
+```go
+package data
+type Point struct{
+  x float64
+  y float64
+}
+func (p *Point) InitMe(xn, yn float64) {
+  p.x = xn
+  p.y = yn
+} // need InitMe() to assign hidden data fields
+
+#####
+
+func (p *Point) Scale(v float64) {
+  p.x = p.x * v
+  p.y = p.y * v
+}
+
+func (p *Point) PrintMe() {
+  fmt.Println(p.x, p.y)
+}
+
+package main
+
+func main() {
+  var p data.Point
+  p.InitMe(3, 4)
+  p.Scale(2)
+  p.PrintMe()
+}
+```
+
+### Point receivers
+**limitations of methods**
+- receiver is passed implicitly as an argument to the method
+- method cannot modify the data inside the receiver
+```go
+// example: OffsetX() should increase x coordinate
+func main() {
+  p1 := Point(3, 4)
+  p1.OffsetX(5)
+}
+```
+- if receiver is large, lots of copying is required
+```go
+type Image [100][100]int
+func main() {
+  il := GrabImage()
+  il.BlurImage()
+}
+// 10,000 ints copied to BlurImage()
+
+#####
+// using pointer receivers
+func (p *Point) OffsetX(v float64) {
+  p.x = p.x + v
+}
+```
+- receiver can be a pointer to a type
+
+#### referencing and dereferencing
+- no need to dereference
+```go
+func (p *Point) OffsetX(v int) {
+  p.x = p.x + v
+}
+```
+- Point is referenced as p, not *p
+- dereferencing is automatic with `.` operator
+- no need to reference
+```go
+func main() {
+  p := Point{3, 4}
+  p.OffsetX(5)
+  fmt.Println(p.x)
+}
+```
+
+#### using pointer receivers
+- good programming pratice: all methods for a type have pointer receivers, or have non-pointer receivers
+- mixing pointer/non-pointer reference for a type will get confusing
