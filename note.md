@@ -1268,3 +1268,512 @@ type error interface {
 ```
 - correct operation: error == nil
 - incorrect operation: Error() prints error message
+
+**handling errors**
+```go
+f, err := os.Open("/harris/test.txt")
+if err != nil {
+  fmt.Println(err)
+  return
+}
+```
+
+## Concurrency
+
+### Parallel execution
+- two programs execute in parallel if they execute at exactly the same time
+- At time t, an instruction is being performed for both P1 and P2
+- need replicated hardware
+- tasks *may* complete more quickly
+
+**speedup without parallelism
+- design faster processors, get speed up without changing software
+- design processor with more memory
+
+**Dynamic Power**: `P = alpha * CFV^2`
+- `alpha` is percent of time switching
+- `C` is capacitance (related to size)
+- `F` is the clock frequency
+- `V` is voltage swing (from low to high). Important, 0 to 5V uses much power than 0 to 1.3V
+
+**Dennard Scaling**:
+- voltage should scale with transistor size
+- keep power consumption, and temperature low
+- problem: voltage can't go too low, must stay above threshold voltage; noise problems occur
+- problem: doesn't consider leakage power
+
+**multi-core systems**
+- cannot increase frequency
+- can still add processor cores, without increasing frequency: trend is apparent today
+- parallel execution is needed to exploit multi-core systems
+- code made to execute on multiple cores
+- different programs on different cores
+
+### Concurrent execution
+- concurrent execution is not necessarily the same as parallel execution
+- *Concurrent*: start and end times overlap
+- *Parallel*: execute at exactly the same time
+
+**concurrent vs parallel**
+- parallel tasks must be executed on different hardware
+- concurrent tasks may be executed on the same hardware, only one task actually executed at a time
+- mapping from tasks to hardware is not directly controlled by the programmer => at least not in go
+
+**concurrent programming**
+- programmer determines which tasks **can** be executed in parallel
+- mapping tasks to hardware: operating system, go runtime scheduler
+
+**hiding latency**
+- concurrency improves performance, even without parallelism
+- tasks must periodically wait for something: waiting for memory
+- other concurrent tasks can operate while one task is waiting
+
+**hardware mapping in Go**
+- programmer does not determine the hardware mapping
+- programmer makes parallelism possible
+- hardware mapping depends on many factors: where data; what are the communication costs
+
+### Processes
+- an instance of a running program
+- thins unique to a process
+- 1. memory: virtual address space, code, stack, heap, shared libraries
+- 2. registers: program counter, data regs, stack ptr, ...
+
+**operating systems**
+- allows many processes to execute concurrently
+- processes are switched quickly: 20ms
+- usedr has the impression of parallelism
+- operating system must give processes fair access to resources
+
+### Scheduling
+**scheduling processes**
+- operating system schedules processes for execution
+- gives the illusion of parallel execution
+- os gives fair access to CPU, memory, etc.
+
+**context switch**
+- control flow changes from one process to another
+- process 'context' must be swapped
+
+### threads vs. processes
+- threads share some context
+- many threads can exist in one process
+- os schedules threads rather than process
+
+### Goroutine (I)
+- like a thread in go
+- many Goroutines execute within a single os thread
+- schedules goroutines inside an os thread
+- like a little os inside a single os thread
+- **logical processor** is mapped to a thread
+
+### Interleavings
+- order of execution within a task is known
+- order of execution between concurrent tasks is unknown (non-deterministic)
+- many interleavings are possible
+- must consider all possibilities
+
+### Race condition
+- outcome depends on non-deterministic ordering
+- races occur due to **communication**
+
+**communication between tasks**
+- threads are largely independent but not completely independent
+- example: web server, 1 thread per client
+- example: image processing, 1 thread per pixel block
+
+### Goroutine (II)
+- one goroutine is created automatically to execute the `main()`
+- other goroutines are created using the `go keyword`
+
+**exiting a goroutine**
+- a goroutine exists when its code is complete
+- when the main goroutine is complete, all other goroutines exit
+```go
+// early exit
+func main() {
+  go fmt.Printf("New routine")
+  fmt.Printf("Main routine")
+}
+```
+- only "Main routine" is pinted
+- main finished before the new goroutine started
+
+**delayed exit**
+```go
+func main() {
+  go fmt.Peintf("New routine")
+  time.Sleep(100 * time.Millisecond)
+  fmt.Printf("Main routine")
+}
+```
+- add a delay in the main routine to give the new routine a chance to complete
+- "New routineMain Routine" is now printed
+
+**timing with goroutines**
+- adding a delay to wait for a goroutine is bad!
+- time assumption may be wrong
+- timing is non-deterministic
+
+#### basic synchronization
+- using **global events**, whose execution is viewed by all threads, simultaneously
+
+**synchronization example**
+```
+// task 1
+x = 1
+x = x + 1
+GLOBAL EVENT
+
+// task 2
+if GLOBAL EVENT
+  print x
+```
+- `GLOBAL EVENT` is viewed by all tasks at the same time
+- print must occur after update of x
+- synchronization is used to restrict bad interleavings
+
+#### wait groups
+**sync WaitGroup**:
+- sync package contains functions to synchronize between goroutines
+- `sync.WaitGroup` forces a goroutine to wait for other goroutines
+- example: contains an internal counter
+- - increment counter for each goroutine to wait for
+- - decrement counter when each goroutine completes
+- 1. `wg.Add(1)` => increments the counter
+- 2. `wg.Done()` => decrements the counter
+- 3. `wg.Wait()` => blocks until `counter == 0`
+
+```go
+func foo(wg *sync.WaitGroup) {
+  fmt.Printf("New routine")
+  wg.Done()
+}
+
+func main() {
+  var wg sync.WaitGroup
+  wg.Add(1)
+  go foo(&wg)
+  wg.Wait()
+  fmt.Printf("Main routine")
+}
+```
+
+#### Goroutine communication
+- goroutines usually work together to perform a bigger task
+- often need to send data to collaborate
+- example: find the product of 4 integers
+- - make 2 goroutines, each multiplies a pair
+- - main goroutine multiplies the 2 result
+- need to send ints from main routine to the 2 sub-routines
+- need to send results from sub-routines back to main routine
+
+**channels**
+- transfer data between goroutines
+- channels are typed
+- use `make()` to crate a channel: `c := make(chan int)`
+- send and receive data using the `<-` operator
+- send data on a channel: `c <- 3`
+- receive data from a channel: `x := <- c`
+
+```go
+func prod(v1 int, v2 int, c chan int) {
+  c <- v1 * v2
+}
+
+func main() {
+  c :=make(chan int)
+  go prod(1, 2, c)
+  go prod(3, 4, c)
+  a := <- c
+  b := <- c
+  fmt.Println(a * b)
+}
+```
+#### blocking on channels
+**unbuffered channel**
+- unbuffered channels cannot hold data in transit: default is unbuffered
+- sending blocks until data is received
+- receiving blocks until data is sent
+
+**blocking and synchronization**
+- channel communication is synchronous
+- blocking is the same as waiting for communication
+- receiving and ignoring the result is same as a `Wait()`
+
+#### buffered channel
+**channel capacity**
+- channels can contain a limited number of objects: default size 0 (unbuffered)
+- **capacity** is the number of objects it can hold in transit
+- optional argument to make() defines channel capacity: `c := make(chan int, 3)`
+- sending only blocks if **buffer is full**
+- receiving only blocks if **buffer is empty**
+
+**use of buffering**
+- sender and receiver do not need to operate at exactly the same speed
+- speed mismatch is acceptable
+- average speeds must still match
+
+**iterating through a channel**
+- common to iteratively read from a channel
+```go
+for i := range c {
+  fmt.Println(i)
+}
+```
+- continues to read from channel c
+- one iteration each time a new value is received
+- `i` is assigned to the read value
+- iterates when sender calls `close(c)`
+
+**receiving from multiple goroutines**
+- multiple channels may be used to receive from multiple sources
+- data from both sources may be needed
+- read sequentially
+```go
+a := <- c1
+b := <- c2
+fmt.Println(a * b)
+```
+
+**select statement**
+- may have a choice of which data to use: i.e. first-come first-served
+- use `select` statement to wait on the first data from a set of channels
+```go
+select {
+  case a = <- c1:
+    fmt.Println(a)
+  case b = <- c2:
+    fmt.Println(b)
+}
+```
+
+#### select
+**select send or receive**
+- may select either send or receive operations
+```go
+select {
+  case a = <- inchan:
+    fmt.Println("Received a")
+  case outchan <- b:
+    fmt.Println("sent b")
+}
+```
+
+**select with an abort channel**
+- use select with a **separated abort channel**
+- may want to receive data until an **abort signal** is received
+```go
+for {
+  select {
+    case a <- c:
+      fmt.Println(a)
+    case <- abort:
+      return
+  }
+}
+```
+
+**default select**
+- may want a default operation to avoid blocking
+```go
+select {
+  case a = <- c1:
+    fmt.Println(a)
+  case b = <- c2:
+    fmt.Println(b)
+  default:
+    fmt.Println("nop")
+}
+```
+
+#### multual exclusion
+**Goroutines sharing variables**
+- sharing variables concurrently can case problems
+- two goroutines writing to a shared variable can interfere with each other
+- (concurrency-safe) function can be invoked cocurrently without interfering with other goroutines
+
+**example:** variable sharing example
+```go
+var i int = 0
+var wg sync.WaitGroup
+
+func inc() {
+  i = i + 1
+  wg.Done()
+}
+
+func main() {
+  wg.Add(2)
+  go inc()
+  go inc()
+  wg.Wait()
+  fmt.Println(i)
+}
+// 2 goroutines write to i
+// i should equal 2 but not always happen
+// explication is following:
+```
+
+**granularity of concurrency**:
+- concurrency is at the machine code level
+- `i = i + 1` might be 3 machine instructions: read, increment, write
+- both tasks may read 0 for `i` value
+
+**correct sharing**
+- don't let 2 goroutines write to a shared variable at the same time
+- need to restrict possible interleavings
+- access to shared variables cannot be interleaved
+
+**mutual exclusion (Mutex)**
+- code segments in different goroutines which cannot execute concurrently
+- writing to shared variables should be mutually exclusive
+
+**`Sync.Mutex`**
+- a Mutex ensures mutual exclusion
+- uses a `binary semaphore`
+- flag up: shared variable is in use; flag down - shared variable is available
+
+**`Sync.Mutex` methods**
+- `Lock()` method puts the flag up: shared variable in use
+- if lock is already taken by a goroutine, `Lock()` blocks until the flag is put down
+- `Unlock()` method puts the flag down: Done using shared variable
+- When `Unlock()` is called, a blocked `Lock()` can proceed
+```go
+// increment operation is now mutually exclusive
+var i int = 0
+var mut sync.Mutex
+func inc() {
+  mut.Lock()
+  i = i + 1
+  mut.Unlock()
+}
+```
+**synchronous initialization**
+- must happen once
+- must happen before everything else
+- how do you perform initialization with multiple goroutines?
+- could perfrom initialization before starting the goroutines
+
+**`Sync.Once`**
+- has 1 method, `once.Do(f)` => function `f` will only be executed 1 times, even if it is called in multiple goroutines
+- all calls to `once.Do()` block until the first returns, ensures that initialization executes first
+
+**Example:**
+```go
+// make 2 goroutiens, initialization only once
+// each goroutine executes dostuff()
+
+var wg sync.WaitGroup
+
+func main() {
+  wg.Add(2)
+  go dostuff()
+  go dostuff()
+  wg.Wait()
+}
+
+// setup() should execute only once
+// "hello" should not print until setup() returns
+
+var  on sync.Once
+func setup() {
+  fmt.Println("Init")
+}
+
+func dostuff() {
+  on.Do(setup)
+  fmt.Println("hello")
+  wg.Done()
+}
+
+// init appears only once
+// init appears before hello is printed
+```
+
+**synchroniazation dependencies**
+- synchronization causes the execution of different goroutines to depend on each other
+
+**Deadlock**
+- circular dependencies cause all involved goroutines to block
+- can be caused by waiting on channels
+
+**Example:**
+```go
+func dostuff(c1 chan int, c2 chan int) {
+  <- c1
+  c2 <- 1
+  wg.Done()
+}
+// read from first channel and write on second channel
+
+func main() {
+  ch1 := make(chan int)
+  ch2 := make(chan int)
+  wg.Add(2)
+  go dostuff(ch1, ch2)
+  go dostuff(ch2, ch1)
+  wg.Wait()
+}
+// dostuff() argument order is swapped
+// each goroutine blocked on channel read
+```
+
+**Deadlock detection**
+- Golang runtime automatically detects when all goroutines are deadlocked `fatal error: all goroutiens are asleep - deadlock!`
+- cannot detect when a subset of goroutines are deadlocked
+
+**Dining philosophers problem**
+- classic problem involving concurrency and synchronization
+
+*Problem*
+- 5 philosophers sitting at a round table
+- 1 chopstick is placed between each adjacent pair
+- want to eat rice from their plate, but needs 2 chopsticks
+- only 1 philosopher can hold a chopstick at a time
+- not enough chopsticks for every one to eat at once
+- each chopstick is a mutex
+- each philosopher is associated with a goroutine and 2 chopsticks
+
+```go
+type ChopS struct { sync.Mutex }
+type Philo struct {
+  leftCS, rightCS *ChopS
+}
+
+func (p Philo) eat() {
+  for {
+    p.leftCS.Lock()
+    p.rightCS.Lock()
+
+    fmt.Println("eating")
+    p.leftCS.Unlock()
+    p.rightCS.Unlock()
+  }
+
+func main() {
+  CSticks := make([]*ChopS, 5)
+  for i := 0; i < 5; i++ {
+    CSticks[i] = new(ChopS)
+  }
+  philos := make([]*Philo, 5)
+  for i := 0; i < 5; i++ {
+    philos[i] = &Philo{CSticks[i], CSticks[(i+5) % 5]}
+  }
+
+  for i := 0; i < 5; i++ {
+    go philos[i].eat()
+  }
+  // all philosophers might lock their left chopsticks concurrently
+  // no one can lock their right chopsticks
+}
+```
+
+**Deadlock solution**
+```go
+// each philosopher picks up lowest numbered chopstick first
+philos[i] = &Philo{CSticks[i], CSticks[(i + 1) % 5]}
+//philosopher 4 picks up chopstick 0 before chopstick 4
+// philosopher blocks allowing philosopher 3 to eat
+// no deadlock, but philosopher 4 may starve
+```
